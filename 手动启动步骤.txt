@@ -1,0 +1,220 @@
+设置开机自启动
+sudo chmod +x ./boot_server_installer.sh
+./boot_server_installer.sh
+
+停止脚本：
+./stop_comfyui.sh
+启动脚本
+./start_comfyui.sh
+
+1. 激活环境
+
+conda activate ./my_env
+2. 运行主程序，用8188端口
+python main.py --listen --enable-cors-header --output-directory /mnt/SD01/projects/ComfyUI_base/output --input-directory /mnt/SD01/projects/ComfyUI_base/input --user-directory /mnt/SD01/projects/ComfyUI_base/user --port 8188 --cuda-device 0 
+
+指定显卡和端口的参数
+--port 8188 --cuda-device 0 
+
+启动插件黑名单的参数
+--blacklist-custom-nodes ComfyUI-Sentinel
+
+3. 打开浏览器输入网址
+本机
+http://127.0.0.1:8188
+局域网
+http://192.168.110.2:8188
+
+
+4. 如果要后台运行
+# 创建新的screen会话
+screen -S comfyui
+
+# 在screen会话中运行程序
+激活环境
+conda activate ./my_env
+python main.py --listen --enable-cors-header --output-directory /mnt/sdb2/ubuntu/ComfyUI_base/output --input-directory /mnt/sdb2/ubuntu/ComfyUI_base/input --user-directory /mnt/sdb2/ubuntu/ComfyUI_base/user --port 8189 --cuda-device 1 --blacklist-custom-nodes ComfyUI-Sentinel
+
+
+# 按Ctrl+A，然后按D键可以 detach 会话，程序会在后台继续运行
+# 重新连接会话
+screen -r comfyui
+
+# 查找并结束占用端口的进程
+# 查找占用8188端口的进程
+lsof -i :8188
+
+# 如果上面的命令没有返回结果，尝试这个
+netstat -tuln | grep 8188
+
+# 找到进程ID（PID）后，使用kill命令结束它
+kill -9 [PID]
+
+5. 局域网开放本机端口
+```bash
+sudo ufw status
+sudo ufw enable  # 如果未启用，先启用
+
+sudo ufw allow 8188/tcp
+sudo ufw reload  # 重新加载防火墙规则
+```
+
+注意
+1. 如果没有项目中没有my_env文件夹，先创建独立环境
+```cmd
+conda create -p ./my_env python=3.12.4
+```
+2. 在custom_nodes目录中
+git clone https://github.com/MrForExample/ComfyUI-3D-Pack.git
+
+3. cd ComfyUI-3D-Pack
+pip install -r requirements.txt
+python ./install.py
+
+4. 回到项目根目录
+pip install -r requirements.txt
+
+5. 如果torch出错，修正查找pytorch3d和torch能对应的版本:
+https://anaconda.org/pytorch3d/pytorch3d/files?page=2
+https://data.pyg.org/whl/
+兼容comfyui-3d-pack的torch版本：torch241+cuda121
+1. 安装四件套：pip install torch==2.7.0 torchvision torchaudio xformers --extra-index-url https://download.pytorch.org/whl/cu128
+2. 安装项目根目录中的pytorch3d： conda install ./pytorch3d-0.7.8-py312_cu121_pyt241.tar.bz2
+3. 安装项目根目录中的torch_scatter: pip install ./torch_scatter
+
+6. 模型下载源替换
+# ======在main.py中顶部添加HuggingFace镜像代码======
+import os
+import requests
+from urllib.parse import urlparse
+
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+# os.environ['GIT_HUB_ENDPOINT'] = 'https://ghfast.top/https://github.com/'
+
+original_request = requests.Session.request
+
+def patched_request(self, method, url, **kwargs):
+    parsed = urlparse(url)
+    # Add redirect for raw.githubusercontent.com
+    if parsed.netloc == "https://github.com":
+        url = url.replace("https://github.com", "https://ghfast.top/https://github.com")
+    return original_request(self, method, url, **kwargs)
+
+requests.Session.request = patched_request
+# ==========添加结束===========
+
+7. comfyui-copilot
+zhuangjia777@foxmail.com
+a13df43df87542dbad6f61d460452294
+
+8. 修复报错comfyUI-3D-Pack
+ImportError: cannot import name '_load_state_dict_into_model' from 'diffusers.models.modeling_utils' (/home/ck/myProjects/ComfyUI-3D/my_env/lib/python3.12/site-packages/diffusers/models/modeling_utils.py)
+修复方案：
+# from diffusers.models.modeling_utils import ModelMixin, load_state_dict, _load_state_dict_into_model
+from diffusers.models.modeling_utils import ModelMixin, load_state_dict
+
+# error_msgs = _load_state_dict_into_model(model_to_load, state_dict)
+error_msgs = model_to_load.load_state_dict(state_dict, strict=False)
+
+
+10. 如果出现报错：
+# 😺dzNodes: LayerStyle -> Cannot import name 'guidedFilter' from 'cv2.ximgproc'
+A few nodes cannot works properly, while most nodes are not affected. Please REINSTALL package 'opencv-contrib-python'.
+解决方案：
+```
+pip uninstall -y opencv-python opencv-python-headless opencv-contrib-python-headless opencv-contrib-python
+pip install opencv-python opencv-python-headless opencv-contrib-python-headless
+pip install opencv-contrib-python
+```
+
+9. 如果出现报错：
+Optional node movie_editor import failed with error: No module named 'moviepy.editor'.If you don't need to use this optional node, this reminder can be ignored.​
+解决方案：修改ComfyUI_llm_party/custom_tool/moive_editor的导入
+```
+# from moviepy.editor import *
+from moviepy import VideoFileClip, AudioFileClip, ImageClip, concatenate_videoclips
+```
+
+10. 对于插件无法同步，github无法通过标准的子模块命令初始化它，我建议将其转换为普通目录：
+# 第1步：移除无效的子模块引用（这不会删除实际文件）
+git rm --cached custom_nodes/ComfyUI-Sentinel
+
+# 第2步：确保 .gitignore 配置正确（你已经修改过了）
+/custom_nodes/*
+!custom_nodes/example_node.py.example
+!custom_nodes/ComfyUI-Sentinel/
+
+# 第3步：检查目录状态
+ls -la custom_nodes/ComfyUI-Sentinel
+
+# 第4步：如果目录内有自己的 .git 目录，也需要删除
+rm -rf custom_nodes/ComfyUI-Sentinel/.git 2>/dev/null
+
+# 第5步：将目录作为普通文件添加到仓库
+git add custom_nodes/ComfyUI-Sentinel/
+git commit -m "Convert ComfyUI-Sentinel from invalid submodule to regular directory"
+
+11. 如果ssl报错
+# 在文件开头设置SSL证书文件路径
+os.environ['SSL_CERT_FILE'] = '/home/ck/myProjects/ComfyUI/my_env/lib/python3.12/site-packages/certifi/cacert.pem'
+
+12. 多实例comfyui启动
+
+保存脚本并设置执行权限：
+bash
+chmod +x /mnt/sdb2/ubuntu/ComfyUI/run_multiple_comfyui.sh
+
+运行脚本（默认启动2个实例）：
+bash
+./run_multiple_comfyui.sh
+
+也可以指定要启动的实例数量：
+bash
+./run_multiple_comfyui.sh 8  # 启动8个实例
+
+要查看日志，请使用: 
+bash
+tail -f ./logs/comfyui_instance_*.log
+
+要停止所有实例，请使用: 
+bash
+pkill -f "python main.py"
+
+如果您计划运行多个实例（如端口8188-8195），可以一次性开放整个范围：
+bash
+sudo ufw allow 8188:8196/tcp
+
+4. 查看已开放的端口
+bash
+sudo ufw status verbose
+
+5. 重启防火墙（如果需要）
+bash
+sudo ufw reload
+
+13. 添加启动参数-黑名单插件功能
+--blacklist-custom-nodes 插件名称
+
+修改comfy/cli_args.py
+在
+parser.add_argument("--whitelist-custom-nodes", type=str, nargs='+', default=[], help="Specify custom node folders to load even when --disable-all-custom-nodes is enabled.")
+后添加
+parser.add_argument("--blacklist-custom-nodes", type=str, nargs='+', default=[], help="Specify custom node folders to skip loading.")
+
+修改nodes.py
+在      
+if module_path.endswith(".disabled"): 
+    continue
+后添加
+# Check if node is in blacklist
+if possible_module in args.blacklist_custom_nodes:
+    logging.info(f"Skipping {possible_module} due to blacklist_custom_nodes")
+    continue
+
+14. 如果出现找不到证书问题ssl
+bash
+pip install certifi
+python -c "import certifi; print(certifi.where())"
+得到证书位置
+修改main.py中
+os.environ['SSL_CERT_FILE'] = '/mnt/sdb2/ubuntu/ComfyUI/my_env/lib/python3.12/site-packages/certifi/cacert.pem'
