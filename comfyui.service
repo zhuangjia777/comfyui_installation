@@ -1,0 +1,14 @@
+[Unit]
+Description=ComfyUI Stable Diffusion Service
+After=network.target
+
+[Service]
+User=ck
+WorkingDirectory=/home/ck/myProjects/ComfyUI
+ExecStart=/home/ck/myProjects/ComfyUI/start_comfyui.sh
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
