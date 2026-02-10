@@ -1,7 +1,4 @@
-设置开机自启动
-sudo chmod +x ./boot_server_installer.sh
-./boot_server_installer.sh
-
+设置了开机自启动
 停止脚本：
 ./stop_comfyui.sh
 启动脚本
@@ -84,13 +81,16 @@ https://data.pyg.org/whl/
 
 6. 模型下载源替换
 # ======在main.py中顶部添加HuggingFace镜像代码======
-import os
-import requests
-from urllib.parse import urlparse
-
 os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 # os.environ['GIT_HUB_ENDPOINT'] = 'https://ghfast.top/https://github.com/'
 
+import certifi
+cert_path = certifi.where()
+os.environ['SSL_CERT_FILE'] = cert_path
+
+import os
+import requests
+from urllib.parse import urlparse
 original_request = requests.Session.request
 
 def patched_request(self, method, url, **kwargs):
